@@ -1,0 +1,108 @@
+% clear
+% close all
+% clc
+tic 
+
+
+load('data\model_dict_9776.mat');
+load('data\mnist_single.mat') 
+n_train = length(train_x);
+n_test = length(test_y);
+n_class = max(train_y); 
+disorder_dataset_nonli  
+
+train_y_onehot = single(zeros(n_class, n_train));  
+temp = 0:n_class:(n_train*n_class - 1);  
+train_y_onehot(train_y + temp') = 10;  
+train_y_onehot = train_y_onehot'; 
+
+load_model_paramter_nonli 
+
+grad_data_list = zeros(9,100000);
+weight_updated = zeros(9,100,10);
+weight_updated_bp = zeros(9,100,10);
+acc_list = zeros(9,1);
+pulse_num_list = zeros(9,1);
+
+for threshold = 0:0
+    fc1 = rram_array(0, 0, 0, fc1_weight, 0, 0, 0, 0); 
+    fc2 = rram_array(fc2_weight_pos, fc2_weight_neg, fc2_weight_G, fc2_weight, fc2_weight_range, fc2_weight_G_scale, b_RS, c_RS);
+    
+    rand_data_name = 'data\rand_data0.mat';
+    fc2 = fc2.randomized_weight(rand_data_name); 
+
+    epoch = 3;  
+    batch_size = 1;
+    max_iter = epoch * n_train / batch_size;    
+    
+    %     threshold = 0; 
+    lr = 5e-3; 
+%     noise = 0.03;  
+    noise = 0;
+    pulse_bound = 50;  
+    % interval = 100;  
+    % acc_log = zeros(1, max_iter/interval + 1);  
+    % acc_log(1, 1) = acc; 
+    best_acc = 0;
+    % target_acc = 0.9;
+    
+   
+    max_iter = 100;
+    for i=1:max_iter
+
+        start_idx = mod((i-1) * batch_size, n_train) + 1;  
+        end_idx = start_idx + batch_size - 1;
+        input = train_x(start_idx:end_idx, :);  
+        label_onehot = train_y_onehot(start_idx:end_idx, :);
+        
+        
+        y1 = max(input*fc1.weight, 0);
+        y2 = y1*fc2.weight;
+        
+
+%         fc2 = fc2.bp_update(y1, y2, label_onehot, lr, noise);
+%           fc2 = fc2.bp_update_th(y1, y2, label_onehot, lr, noise, threshold);
+        fc2 = fc2.circuit_sbp_update_single_update_wosz(y1, y2, label_onehot, threshold);
+    
+     
+        if mod(i, 5000) == 0
+            [~, ~, acc] = test(test_x, fc1.weight, fc2.weight, test_y);
+  
+            if acc > best_acc
+                best_acc = acc;
+            end
+
+        end
+
+    end
+    fprintf('======== Done ========\n'); 
+    fprintf('best_acc: %6.4f\n', best_acc);  
+    toc
+
+    fprintf('fc2 update pulse num bp w verify : %d\n', fc2.pulse_num);
+    acc_list(threshold+1,:) = best_acc;
+    pulse_num_list(threshold+1,:) = fc2.pulse_num;
+    % fprintf('grad bp len : %d\n', length(fc2.grad_bp_w_model));
+    % grad_data = fc2.grad_bp_w_model;
+    % save data\bp_grad_w_model.mat grad_data
+
+%     fprintf('grad sbp len : %d\n', length(fc2.grad_sbp));
+%     grad_data(threshold+1,:) = fc2.grad_sbp;
+%     weight_updated(threshold+1,:,:) = fc2.weight;
+%     
+    fprintf('grad bp len : %d\n', length(fc2.grad_sbp));     
+    grad_data_list(threshold+1,:) = fc2.grad_sbp;        
+    weight_updated_bp(threshold+1,:,:) = fc2.weight;
+end
+
+weight_updated = weight_updated_bp(1,:);
+% save gradData_4\sbp_grad_100iter_th0.mat grad_data
+% save gradData_4\weight_updated_sbp_100iter_th0_l5.mat weight_updated
+
+% save gradData_4\bp_grad_30iter.mat grad_data
+% save gradData_4\weight_updated_bp_30iter.mat weight_updated_bp
+% 这里的n0是指 noise = 0的结果
+
+% save gradData_4\bp_acc_l1_sz1_data1.mat acc_list;
+% save gradData_4\bp_pulse_l1_sz1_data1.mat pulse_num_list;
+
